@@ -296,7 +296,15 @@ func (store *Store) ConsumeBackupCode(ctx context.Context, userID int64, code st
 	if err := store.database.QueryRowContext(ctx, "SELECT COUNT(*) FROM totp_backup_codes WHERE user_id = ? AND code_hash = ?", userID, hashToken(code)).Scan(&count); err != nil {
 		return false, fmt.Errorf("find TOTP backup code: %w", err)
 	}
-	return count == 1, nil
+	result, err := store.queries.ConsumeTOTPBackupCode(ctx, dbgen.ConsumeTOTPBackupCodeParams{
+		UserID:   userID,
+		CodeHash: hashToken(code),
+	})
+	if err != nil {
+		return false, err
+	}
+	rowsAffected, err := result.RowsAffected()
+	return rowsAffected == 1, err
 }
 
 func (store *Store) CountRecentRecoveryFailures(ctx context.Context, email string) (int64, error) {
