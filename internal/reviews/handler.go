@@ -3,6 +3,7 @@ package reviews
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/bootdotdev/learn-web-security/internal/accounts"
 	"github.com/bootdotdev/learn-web-security/internal/auth/sessions"
@@ -232,6 +233,9 @@ func parseRating(value string) (int64, bool) {
 	return rating, valid && rating >= 1 && rating <= 5
 }
 
+const MaxReviewLength int = 1000
+
 func parseBody(value string) (string, bool) {
-	return value, value != ""
+	body := strings.TrimSpace(value)
+	return body, body != "" && len([]rune(body)) <= MaxReviewLength
 }
