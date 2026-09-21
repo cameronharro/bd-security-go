@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"mime"
 	"os"
 	"path/filepath"
@@ -68,6 +69,9 @@ func ExtractTaxDocumentArchive(encryptionKeyring Keyring, contents []byte, extra
 	plannedEntries := make([]plannedArchiveEntry, 0, len(archiveReader.File))
 	for _, entry := range archiveReader.File {
 		entryDestination := filepath.Join(importDirectory, entry.Name)
+		if isIllegalEntry(entry) || !isInsideDirectory(importDirectory, entryDestination) {
+			return ExtractedTaxDocumentArchive{}, &ArchiveImportError{Message: "illegal entry", StatusCode: 403}
+		}
 		if isIgnoredArchiveEntry(entry.Name) {
 			continue
 		}
@@ -139,6 +143,25 @@ func ExtractTaxDocumentArchive(encryptionKeyring Keyring, contents []byte, extra
 		}
 	}
 	return archive, nil
+}
+
+func isIllegalEntry(entry *zip.File) bool {
+	return isIllegalPath(entry.Name) || entry.FileInfo().Mode()&fs.ModeSymlink != 0
+
+}
+func isInsideDirectory(directory, candidate string) bool {
+	relativePath, err := filepath.Rel(directory, candidate)
+	if err != nil ||
+		relativePath == "" ||
+		relativePath == ".." ||
+		strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) {
+		return false
+	}
+	return true
+}
+
+func isIllegalPath(candidate string) bool {
+	return strings.Contains(candidate, `\`) || filepath.IsAbs(candidate)
 }
 
 func isIgnoredArchiveEntry(entryName string) bool {
