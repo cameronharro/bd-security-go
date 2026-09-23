@@ -54,6 +54,13 @@ func preventCSRF(next http.Handler, trustedOrigin string, renderer *templates.Re
 	})
 }
 
+func setCSP(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'")
+		next.ServeHTTP(w, r)
+	})
+}
+
 func permissiveCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		if origin := request.Header.Get("Origin"); origin != "" {
