@@ -216,6 +216,7 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 	})
 
 	dynamicHandler := permissiveCORS(dynamicMux)
+	dynamicHandler = preventCSRF(dynamicHandler, "http://localhost:3030", renderer)
 
 	mainMux := http.NewServeMux()
 	mainMux.HandleFunc("GET /health", func(responseWriter http.ResponseWriter, _ *http.Request) {

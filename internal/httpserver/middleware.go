@@ -9,6 +9,7 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -27,6 +28,30 @@ func applyMiddleware(handler http.Handler, middlewareChain ...middleware) http.H
 		handler = currentMiddleware(handler)
 	}
 	return handler
+}
+
+func preventCSRF(next http.Handler, trustedOrigin string, renderer *templates.Renderer) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		origin := r.Header.Get("origin")
+		if origin == "" {
+			refererURL, err := url.Parse(r.Referer())
+			if err != nil || refererURL.Scheme == "" {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+			origin = refererURL.Scheme + "://" + refererURL.Host
+		}
+		if origin != trustedOrigin {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func permissiveCORS(next http.Handler) http.Handler {
