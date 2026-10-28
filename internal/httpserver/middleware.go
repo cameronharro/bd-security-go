@@ -57,7 +57,8 @@ func preventCSRF(next http.Handler, trustedOrigin string, renderer *templates.Re
 func setCSP(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cspNonce := httpx.CSPNonce(r.Context())
-		w.Header().Add("Content-Security-Policy", "default-src 'self'; script-src 'self' 'nonce-"+cspNonce+"'; style-src 'self'; img-src 'self' data:; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'")
+		w.Header().Add("Content-Security-Policy", "default-src 'self'; script-src 'self' 'nonce-"+cspNonce+"'; style-src 'self'; img-src 'self' data:; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'")
+		w.Header().Add("X-Frame-Options", "SAMEORIGIN")
 		next.ServeHTTP(w, r)
 	})
 }
