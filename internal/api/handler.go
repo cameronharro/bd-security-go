@@ -27,6 +27,15 @@ type orderItemResponse struct {
 	PriceCents  int64  `json:"price_cents"`
 }
 
+func toOrderItemResponse(item orders.Item) orderItemResponse {
+	return orderItemResponse{
+		ProductID:   item.ProductID,
+		ProductName: item.ProductName,
+		Quantity:    item.Quantity,
+		PriceCents:  item.PriceCents,
+	}
+}
+
 type Handler struct {
 	accountStore      *accounts.Store
 	orderStore        *orders.Store
@@ -43,6 +52,30 @@ func NewHandler(accountStore *accounts.Store, orderStore *orders.Store, productS
 	}
 }
 
+func convertSlice[E, V any](slice []E, converter func(E) V) []V {
+	result := make([]V, len(slice))
+	for i, e := range slice {
+		result[i] = converter(e)
+	}
+	return result
+}
+
+type orderResponse struct {
+	Id         int64  `json:"id"`
+	Status     string `json:"status"`
+	TotalCents int64  `json:"total_cents"`
+	CreatedAt  string `json:"created_at"`
+}
+
+func toOrderResponse(order orders.Order) orderResponse {
+	return orderResponse{
+		Id:         order.ID,
+		Status:     order.Status,
+		TotalCents: order.TotalCents,
+		CreatedAt:  order.CreatedAt,
+	}
+}
+
 func (handler *Handler) AccountOrders(responseWriter http.ResponseWriter, request *http.Request) {
 	current, ok := handler.requireAuthentication(responseWriter, request)
 	if !ok {
@@ -53,7 +86,8 @@ func (handler *Handler) AccountOrders(responseWriter http.ResponseWriter, reques
 		handler.internalError(responseWriter, request, err)
 		return
 	}
-	httpx.RespondWithJSON(responseWriter, http.StatusOK, map[string]any{"orders": orders})
+	ordersResponse := convertSlice(orders, toOrderResponse)
+	httpx.RespondWithJSON(responseWriter, http.StatusOK, map[string]any{"orders": ordersResponse})
 }
 
 func (handler *Handler) Order(responseWriter http.ResponseWriter, request *http.Request) {
@@ -80,20 +114,37 @@ func (handler *Handler) Order(responseWriter http.ResponseWriter, request *http.
 		handler.internalError(responseWriter, request, err)
 		return
 	}
-	itemResponses := make([]orderItemResponse, 0, len(items))
-	for _, item := range items {
-		itemResponses = append(itemResponses, orderItemResponse{ProductID: item.ProductID, ProductName: item.ProductName, Quantity: item.Quantity, PriceCents: item.PriceCents})
+	orderResponse := toOrderResponse(order)
+	itemResponses := convertSlice(items, toOrderItemResponse)
+	httpx.RespondWithJSON(responseWriter, http.StatusOK, map[string]any{"order": orderResponse, "items": itemResponses})
+}
+
+type productResponse struct {
+	Id          int64  `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	ImagePath   string `json:"image_path"`
+	PriceCents  int64  `json:"price_cents"`
+}
+
+func toProductResponse(product storefront.Product) productResponse {
+	return productResponse{
+		Id:          product.ID,
+		Name:        product.Name,
+		Description: product.Description,
+		ImagePath:   product.ImagePath,
+		PriceCents:  product.PriceCents,
 	}
-	httpx.RespondWithJSON(responseWriter, http.StatusOK, map[string]any{"order": order, "items": itemResponses})
 }
 
 func (handler *Handler) Products(responseWriter http.ResponseWriter, request *http.Request) {
-	products, err := handler.productStore.ListAllProducts(request.Context())
+	products, err := handler.productStore.ListProducts(request.Context(), handler.maxProductResults)
 	if err != nil {
 		handler.internalError(responseWriter, request, err)
 		return
 	}
-	httpx.RespondWithJSON(responseWriter, http.StatusOK, map[string]any{"products": products})
+	respProducts := convertSlice(products, toProductResponse)
+	httpx.RespondWithJSON(responseWriter, http.StatusOK, map[string]any{"products": respProducts})
 }
 
 func (handler *Handler) WarehouseOrders(responseWriter http.ResponseWriter, request *http.Request) {
