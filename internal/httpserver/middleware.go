@@ -63,6 +63,13 @@ func setCSP(next http.Handler) http.Handler {
 	})
 }
 
+func setReferrerPolicy(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Referrer-Policy", "strict-origin-when-cross-origin")
+		next.ServeHTTP(w, r)
+	})
+}
+
 func permissiveCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		if origin := request.Header.Get("Origin"); origin != "" {
