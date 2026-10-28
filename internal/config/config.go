@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
 const (
@@ -26,16 +28,17 @@ const (
 )
 
 type Config struct {
-	PawPalAPIKey               string
-	AppOrigin                  string
-	Port                       int
-	DatabasePath               string
 	AcornFulfillmentDelay      time.Duration
+	ActiveEncryptionKeyVersion string
+	AppOrigin                  string
+	DatabasePath               string
+	DownloadSigningKey         [32]byte
+	EncryptionKeys             map[string][32]byte
+	MaxPublicProductResults    int
 	MaxRequestBodyBytes        int64
 	MaxUploadBytes             int64
-	MaxPublicProductResults    int
-	ActiveEncryptionKeyVersion string
-	EncryptionKeys             map[string][32]byte
+	PawPalAPIKey               string
+	Port                       int
 }
 
 type AttackerLabConfig struct {
@@ -43,11 +46,11 @@ type AttackerLabConfig struct {
 }
 
 func Load(workingDirectory string) (Config, error) {
-	return Parse(processEnvironment(), workingDirectory)
+	return Parse(processEnvironment(workingDirectory), workingDirectory)
 }
 
 func LoadAttackerLab(workingDirectory string) (AttackerLabConfig, error) {
-	return ParseAttackerLab(processEnvironment())
+	return ParseAttackerLab(processEnvironment(workingDirectory))
 }
 
 func Parse(environment map[string]string, workingDirectory string) (Config, error) {
@@ -83,17 +86,28 @@ func Parse(environment map[string]string, workingDirectory string) (Config, erro
 		return Config{}, err
 	}
 
+	downloadSigningKeyName := "DOWNLOAD_SIGNING_KEY"
+	downloadSigningKeyStr, err := requiredEnvValue(environment, downloadSigningKeyName)
+	if err != nil {
+		return Config{}, err
+	}
+	downloadSigningKey, err := parseEncryptionKey(downloadSigningKeyStr, downloadSigningKeyName)
+	if err != nil {
+		return Config{}, err
+	}
+
 	return Config{
-		PawPalAPIKey:               pawpalAPIKey,
-		AppOrigin:                  appOrigin,
-		Port:                       port,
-		DatabasePath:               databasePath,
 		AcornFulfillmentDelay:      acornFulfillmentDelay,
+		ActiveEncryptionKeyVersion: activeEncryptionKeyVersion,
+		AppOrigin:                  appOrigin,
+		DatabasePath:               databasePath,
+		DownloadSigningKey:         downloadSigningKey,
+		EncryptionKeys:             encryptionKeys,
+		MaxPublicProductResults:    MaxPublicProductResults,
 		MaxRequestBodyBytes:        MaxRequestBodyBytes,
 		MaxUploadBytes:             MaxUploadBytes,
-		MaxPublicProductResults:    MaxPublicProductResults,
-		ActiveEncryptionKeyVersion: activeEncryptionKeyVersion,
-		EncryptionKeys:             encryptionKeys,
+		PawPalAPIKey:               pawpalAPIKey,
+		Port:                       port,
 	}, nil
 }
 
@@ -108,7 +122,9 @@ func ParseAttackerLab(environment map[string]string) (AttackerLabConfig, error) 
 	return AttackerLabConfig{Port: port}, nil
 }
 
-func processEnvironment() map[string]string {
+func processEnvironment(workingDirectory string) map[string]string {
+	ENV_FILE_PATH := filepath.Join(workingDirectory, ".env")
+	godotenv.Load(ENV_FILE_PATH)
 	environment := make(map[string]string)
 	for _, entry := range os.Environ() {
 		name, value, found := strings.Cut(entry, "=")
