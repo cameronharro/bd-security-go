@@ -31,12 +31,33 @@ func (logger *Logger) Close() error {
 	return logger.file.Close()
 }
 
+var sensitiveFields = map[string]struct{}{
+	"sessionId":   {},
+	"resetToken":  {},
+	"resetLink":   {},
+	"secret":      {},
+	"adminNotes":  {},
+	"storagePath": {},
+}
+
+func redact(fields map[string]any) map[string]any {
+	redacted := make(map[string]any, len(fields))
+	for name, value := range fields {
+		if _, sensitive := sensitiveFields[name]; sensitive {
+			redacted[name] = "[REDACTED]"
+			continue
+		}
+		redacted[name] = value
+	}
+	return redacted
+}
+
 func (logger *Logger) Event(eventName string, fields map[string]any) error {
 	record := map[string]any{
 		"timestamp": logger.now().UTC().Format("2006-01-02T15:04:05.000Z"),
 		"event":     eventName,
 	}
-	maps.Copy(record, fields)
+	maps.Copy(record, redact(fields))
 
 	logger.mutex.Lock()
 	defer logger.mutex.Unlock()
