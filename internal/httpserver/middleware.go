@@ -70,19 +70,15 @@ func setReferrerPolicy(next http.Handler) http.Handler {
 	})
 }
 
-func permissiveCORS(next http.Handler) http.Handler {
+func sendPublicCorsOptions(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Access-Control-Allow-Origin", "*")
+	w.Header().Add("Access-Control-Allow-Methods", http.MethodGet)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func setPublicCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
-		if origin := request.Header.Get("Origin"); origin != "" {
-			responseWriter.Header().Set("Access-Control-Allow-Origin", origin)
-			responseWriter.Header().Set("Access-Control-Allow-Credentials", "true")
-			responseWriter.Header().Set("Vary", "Origin")
-		}
-		if request.Method == http.MethodOptions {
-			responseWriter.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-			responseWriter.Header().Set("Access-Control-Allow-Headers", request.Header.Get("Access-Control-Request-Headers"))
-			responseWriter.WriteHeader(http.StatusNoContent)
-			return
-		}
+		responseWriter.Header().Set("Access-Control-Allow-Origin", "*")
 		next.ServeHTTP(responseWriter, request)
 	})
 }
