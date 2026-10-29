@@ -62,6 +62,7 @@ func run(ctx context.Context) error {
 		PawPalAPIKey:            appConfig.PawPalAPIKey,
 		PublicDirectory:         filepath.Join(workingDirectory, "web", "public"),
 		TemplateDirectory:       filepath.Join(workingDirectory, "web", "templates"),
+		TrustedProxyHops:        appConfig.TrustedProxyHops,
 	})
 	if err != nil {
 		return err

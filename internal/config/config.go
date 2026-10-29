@@ -16,15 +16,16 @@ import (
 )
 
 const (
-	defaultPort                = 3030
-	defaultAttackerLabPort     = 4040
+	activeEncryptionVersionEnv = "DATA_ENCRYPTION_ACTIVE_VERSION"
 	defaultAppOrigin           = "http://localhost:3030"
+	defaultAttackerLabPort     = 4040
 	defaultDatabaseFilename    = "bearly-secure.sqlite"
+	defaultPort                = 3030
+	defaultTrustedProxyHops    = 0
+	encryptionKeyEnvPrefix     = "DATA_ENCRYPTION_KEY_"
+	MaxPublicProductResults    = 50
 	MaxRequestBodyBytes        = 32 * 1024
 	MaxUploadBytes             = 1024 * 1024
-	MaxPublicProductResults    = 50
-	activeEncryptionVersionEnv = "DATA_ENCRYPTION_ACTIVE_VERSION"
-	encryptionKeyEnvPrefix     = "DATA_ENCRYPTION_KEY_"
 )
 
 type Config struct {
@@ -39,6 +40,7 @@ type Config struct {
 	MaxUploadBytes             int64
 	PawPalAPIKey               string
 	Port                       int
+	TrustedProxyHops           int
 }
 
 type AttackerLabConfig struct {
@@ -96,6 +98,11 @@ func Parse(environment map[string]string, workingDirectory string) (Config, erro
 		return Config{}, err
 	}
 
+	trustedProxyHops, err := parseNonNegativeInteger(valueOrDefault(environment, "TRUST_PROXY_HOPS", strconv.Itoa(defaultTrustedProxyHops)), "TRUST_PROXY_HOPS")
+	if err != nil {
+		return Config{}, err
+	}
+
 	return Config{
 		AcornFulfillmentDelay:      acornFulfillmentDelay,
 		ActiveEncryptionKeyVersion: activeEncryptionKeyVersion,
@@ -108,6 +115,7 @@ func Parse(environment map[string]string, workingDirectory string) (Config, erro
 		MaxUploadBytes:             MaxUploadBytes,
 		PawPalAPIKey:               pawpalAPIKey,
 		Port:                       port,
+		TrustedProxyHops:           trustedProxyHops,
 	}, nil
 }
 
