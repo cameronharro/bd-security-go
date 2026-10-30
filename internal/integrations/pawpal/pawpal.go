@@ -1,6 +1,9 @@
 package pawpal
 
-import "fmt"
+import (
+	"crypto/subtle"
+	"fmt"
+)
 
 type WebhookOutcome string
 
@@ -19,8 +22,28 @@ func CreateCheckoutURL(orderID int64) string {
 	return fmt.Sprintf("https://pawpal.example/checkout?orderId=%d", orderID)
 }
 
-func VerifyWebhook(payload any) WebhookVerification {
-	payloadRecord, _ := payload.(map[string]any)
-	orderID, _ := payloadRecord["orderId"].(float64)
+func VerifyWebhook(providedKey, expectedKey []byte, payload any) WebhookVerification {
+	if subtle.ConstantTimeCompare(providedKey, expectedKey) == 0 {
+		return WebhookVerification{
+			Outcome: WebhookUnauthorized,
+		}
+	}
+	payloadRecord, valid := payload.(map[string]any)
+	if !valid {
+		return WebhookVerification{
+			Outcome: WebhookUnauthorized,
+		}
+	}
+	orderID, valid := payloadRecord["orderId"].(float64)
+	if !valid {
+		return WebhookVerification{
+			Outcome: WebhookMalformed,
+		}
+	}
+	if approved, valid := payloadRecord["status"]; !valid || approved != "approved" {
+		return WebhookVerification{
+			Outcome: WebhookMalformed,
+		}
+	}
 	return WebhookVerification{Outcome: WebhookApproved, OrderID: int64(orderID)}
 }
