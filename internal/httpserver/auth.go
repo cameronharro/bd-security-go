@@ -95,6 +95,12 @@ func (handler *authHandler) Login(responseWriter http.ResponseWriter, request *h
 		}
 		return
 	}
+	if passwords.NeedsRehash(user.PasswordHash) {
+		newHash, err := passwords.Hash(password)
+		if err == nil {
+			handler.accounts.UpdatePasswordHash(request.Context(), user.ID, newHash)
+		}
+	}
 
 	challengeToken := totpLoginChallengeToken(request)
 	if err := handler.mfa.DeleteChallenge(request.Context(), challengeToken); err != nil {

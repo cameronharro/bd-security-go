@@ -64,6 +64,20 @@ func Verify(password, encodedHash string) bool {
 	return subtle.ConstantTimeCompare(derivedKey, parsedArgon2id.derivedKey) == 1
 }
 
-func NeedsRehash(string) bool {
+func NeedsRehash(encodedHash string) bool {
+	if _, isLegacyHash := decodeLegacyHash(encodedHash); isLegacyHash {
+		return true
+	}
+	if parsedA2IDHash, ok := parseArgon2idHash(encodedHash); ok {
+		if parsedA2IDHash.memoryKiB != A2IDMemory {
+			return true
+		}
+		if parsedA2IDHash.iterations != A2IDIterations {
+			return true
+		}
+		if parsedA2IDHash.parallelism != A2IDParallelism {
+			return true
+		}
+	}
 	return false
 }
