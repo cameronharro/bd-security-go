@@ -24,15 +24,19 @@ type serializedShippingDetails struct {
 	PostalCode *string `json:"postalCode"`
 }
 
-func EncryptShippingDetails(details ShippingDetails, _ *storage.Keyring) (string, error) {
+func EncryptShippingDetails(details ShippingDetails, keyring *storage.Keyring) (string, error) {
 	plaintext, err := json.Marshal(details)
 	if err != nil {
 		return "", fmt.Errorf("serialize shipping details: %w", err)
 	}
-	return string(plaintext), nil
+	return keyring.Encrypt(plaintext)
 }
 
-func DecryptShippingDetails(serialized string, _ *storage.Keyring) (ShippingDetails, error) {
+func DecryptShippingDetails(ciphertext string, keyring *storage.Keyring) (ShippingDetails, error) {
+	serialized, err := keyring.Decrypt(ciphertext)
+	if err != nil {
+		return ShippingDetails{}, err
+	}
 	var details serializedShippingDetails
 	if err := json.Unmarshal([]byte(serialized), &details); err != nil || details.Name == nil || details.Address == nil || details.City == nil || details.Region == nil || details.PostalCode == nil {
 		return ShippingDetails{}, errors.New("invalid shipping details")
