@@ -33,11 +33,6 @@ import (
 	"github.com/bootdotdev/learn-web-security/internal/uploads"
 )
 
-const (
-	defaultUploadBytes            = 5 * 1024 * 1024
-	unboundedPublicProductResults = -1
-)
-
 type Options struct {
 	AppOrigin               string
 	DownloadSigningKey      [32]byte
@@ -100,7 +95,7 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 		accountStore,
 		renderer,
 		logger,
-		unboundedPublicProductResults,
+		options.MaxPublicProductResults,
 	)
 	uploadHandler := uploads.NewHandler(
 		accountStore,
@@ -109,11 +104,11 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 		logger,
 		options.EncryptionKeyring,
 		uploadDirectory,
-		defaultUploadBytes,
+		options.MaxUploadBytes,
 		options.DownloadSigningKey,
 	)
 	adminHandler := admin.NewHandler(admin.NewStore(database), accountStore, renderer, logger, imagepreview.NewService(), options.MaxUploadBytes)
-	apiHandler := api.NewHandler(accountStore, orderStore, productStore, api.NewStore(database), logger, unboundedPublicProductResults)
+	apiHandler := api.NewHandler(accountStore, orderStore, productStore, api.NewStore(database), logger, options.MaxPublicProductResults)
 	assistantHandler := assistant.NewHandler(accountStore, assistant.NewService(orderStore), renderer, logger)
 	supportHandler := support.NewHandler(
 		accountStore,
@@ -123,7 +118,7 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 		logger,
 		options.EncryptionKeyring,
 		filepath.Join(options.DataDirectory, "bulk-tax-documents"),
-		defaultUploadBytes,
+		options.MaxUploadBytes,
 	)
 	authenticationHandler := newAuthHandler(accountStore, mfaStore, passwordResetStore, renderer, logger, options.AppOrigin)
 	passkeyHandler, err := passkeys.NewHandler(
@@ -271,7 +266,7 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 			maximum: 100,
 			window:  1 * time.Minute,
 		}),
-		preventCSRF("http://bearly-secure.test", renderer),
+		preventCSRF(options.AppOrigin, renderer),
 	)
 
 	mainMux := http.NewServeMux()

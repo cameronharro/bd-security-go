@@ -54,7 +54,7 @@ func (store *Store) SearchProducts(ctx context.Context, query string, maxResults
 		ctx,
 		dbgen.SearchActiveProductsParams{
 			Pattern:    "%" + query + "%",
-			MaxResults: 10,
+			MaxResults: maxResults,
 		},
 	)
 	if err != nil {
