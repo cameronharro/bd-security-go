@@ -213,7 +213,14 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 		}
 	})
 
-	dynamicHandler := preventCSRF(dynamicMux, "http://localhost:3030", renderer)
+	dynamicHandler := applyMiddleware(
+		dynamicMux,
+		fixedWindowRateLimiter(rateLimitOptions{
+			maximum: 100,
+			window:  1 * time.Minute,
+		}),
+		preventCSRF("http://localhost:3030", renderer),
+	)
 
 	mainMux := http.NewServeMux()
 	mainMux.HandleFunc("GET /health", func(responseWriter http.ResponseWriter, _ *http.Request) {

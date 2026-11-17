@@ -30,28 +30,30 @@ func applyMiddleware(handler http.Handler, middlewareChain ...middleware) http.H
 	return handler
 }
 
-func preventCSRF(next http.Handler, trustedOrigin string, renderer *templates.Renderer) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			next.ServeHTTP(w, r)
-			return
-		}
+func preventCSRF(trustedOrigin string, renderer *templates.Renderer) middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPost {
+				next.ServeHTTP(w, r)
+				return
+			}
 
-		origin := r.Header.Get("origin")
-		if origin == "" {
-			refererURL, err := url.Parse(r.Referer())
-			if err != nil || refererURL.Scheme == "" {
+			origin := r.Header.Get("origin")
+			if origin == "" {
+				refererURL, err := url.Parse(r.Referer())
+				if err != nil || refererURL.Scheme == "" {
+					w.WriteHeader(http.StatusForbidden)
+					return
+				}
+				origin = refererURL.Scheme + "://" + refererURL.Host
+			}
+			if origin != trustedOrigin {
 				w.WriteHeader(http.StatusForbidden)
 				return
 			}
-			origin = refererURL.Scheme + "://" + refererURL.Host
-		}
-		if origin != trustedOrigin {
-			w.WriteHeader(http.StatusForbidden)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func securityHeaders(next http.Handler) http.Handler {
@@ -244,8 +246,17 @@ func (limiter *fixedWindowLimiter) reject(responseWriter http.ResponseWriter, re
 
 func fixedWindowRateLimiter(options rateLimitOptions) middleware {
 	validateRateLimitOptions(options)
+	limiter := newFixedWindowLimiter(options)
 	return func(next http.Handler) http.Handler {
-		return next
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			limiterState, limit := limiter.consume(r)
+			if limit {
+				limiter.reject(w, r, limiterState)
+				return
+			}
+			setRateLimitHeaders(w, limiterState)
+			next.ServeHTTP(w, r)
+		})
 	}
 }
 
