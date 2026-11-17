@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/bootdotdev/learn-web-security/internal/account"
@@ -159,16 +160,53 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 	dynamicMux.HandleFunc("GET /api/integrations/warehouse/orders", apiHandler.WarehouseOrders)
 	dynamicMux.Handle("POST /products/{id}/reviews", parseForm(options.MaxRequestBodyBytes, renderer)(http.HandlerFunc(reviewHandler.Create)))
 	dynamicMux.HandleFunc("GET /login", authenticationHandler.LoginPage)
-	dynamicMux.Handle("POST /login", parseForm(options.MaxRequestBodyBytes, renderer)(http.HandlerFunc(authenticationHandler.Login)))
+	emailKey := func(r *http.Request) string {
+		return strings.ToLower(strings.TrimSpace(r.Form.Get("email")))
+	}
+	dynamicMux.Handle("POST /login", applyMiddleware(
+		http.HandlerFunc(authenticationHandler.Login),
+		parseForm(options.MaxRequestBodyBytes, renderer),
+		fixedWindowRateLimiter(rateLimitOptions{
+			key:     emailKey,
+			maximum: 5,
+			window:  15 * time.Minute,
+		}),
+		fixedWindowRateLimiter(rateLimitOptions{
+			key:     clientIPKeyWithTrustedProxies(options.TrustedProxyHops),
+			maximum: 20,
+			window:  15 * time.Minute,
+		}),
+	))
 	dynamicMux.HandleFunc("GET /login/totp", authenticationHandler.TOTPLoginPage)
-	dynamicMux.Handle("POST /login/totp", parseForm(options.MaxRequestBodyBytes, renderer)(http.HandlerFunc(authenticationHandler.TOTPLogin)))
+	dynamicMux.Handle("POST /login/totp", applyMiddleware(
+		http.HandlerFunc(authenticationHandler.TOTPLogin),
+		parseForm(options.MaxRequestBodyBytes, renderer),
+		fixedWindowRateLimiter(rateLimitOptions{
+			key:     clientIPKeyWithTrustedProxies(options.TrustedProxyHops),
+			maximum: 20,
+			window:  15 * time.Minute,
+		}),
+	))
 	dynamicMux.HandleFunc("POST /login/totp/cancel", authenticationHandler.CancelTOTPLogin)
 	dynamicMux.HandleFunc("GET /signup", authenticationHandler.SignupPage)
 	dynamicMux.Handle("POST /signup", parseForm(options.MaxRequestBodyBytes, renderer)(http.HandlerFunc(authenticationHandler.Signup)))
 	dynamicMux.HandleFunc("GET /recover-mfa", authenticationHandler.MFARecoveryPage)
 	dynamicMux.Handle("POST /recover-mfa", parseForm(options.MaxRequestBodyBytes, renderer)(http.HandlerFunc(authenticationHandler.RecoverMFA)))
 	dynamicMux.HandleFunc("GET /password-reset", authenticationHandler.PasswordResetRequestPage)
-	dynamicMux.Handle("POST /password-reset", parseForm(options.MaxRequestBodyBytes, renderer)(http.HandlerFunc(authenticationHandler.RequestPasswordReset)))
+	dynamicMux.Handle("POST /password-reset", applyMiddleware(
+		http.HandlerFunc(authenticationHandler.RequestPasswordReset),
+		parseForm(options.MaxRequestBodyBytes, renderer),
+		fixedWindowRateLimiter(rateLimitOptions{
+			key:     emailKey,
+			maximum: 3,
+			window:  1 * time.Hour,
+		}),
+		fixedWindowRateLimiter(rateLimitOptions{
+			key:     clientIPKeyWithTrustedProxies(options.TrustedProxyHops),
+			maximum: 10,
+			window:  1 * time.Hour,
+		}),
+	))
 	dynamicMux.HandleFunc("GET /password-reset/{token}", authenticationHandler.PasswordResetPage)
 	dynamicMux.Handle("POST /password-reset/{token}", parseForm(options.MaxRequestBodyBytes, renderer)(http.HandlerFunc(authenticationHandler.ResetPassword)))
 	dynamicMux.HandleFunc("POST /logout", authenticationHandler.Logout)
@@ -230,7 +268,7 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 			maximum: 100,
 			window:  1 * time.Minute,
 		}),
-		preventCSRF("http://localhost:3030", renderer),
+		preventCSRF("http://bearly-secure.test", renderer),
 	)
 
 	mainMux := http.NewServeMux()
