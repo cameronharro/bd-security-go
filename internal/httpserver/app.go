@@ -267,6 +267,7 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 			window:  1 * time.Minute,
 		}),
 		preventCSRF(options.AppOrigin, renderer),
+		LoadShedder(50, 1),
 	)
 
 	mainMux := http.NewServeMux()
