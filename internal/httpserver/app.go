@@ -26,6 +26,7 @@ import (
 	"github.com/bootdotdev/learn-web-security/internal/logging"
 	"github.com/bootdotdev/learn-web-security/internal/observability"
 	"github.com/bootdotdev/learn-web-security/internal/orders"
+	"github.com/bootdotdev/learn-web-security/internal/policy"
 	"github.com/bootdotdev/learn-web-security/internal/reviews"
 	"github.com/bootdotdev/learn-web-security/internal/storage"
 	"github.com/bootdotdev/learn-web-security/internal/storefront"
@@ -307,6 +308,11 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 	mainMux.Handle("GET /shipping-widget.js", setPublicCORPHeader(staticHandler))
 	mainMux.Handle("GET /product-photos/{filename}", staticHandler)
 	mainMux.HandleFunc("POST /integrations/pawpal/webhook", pawPalHandler.Webhook)
+	mainMux.Handle("GET /.well-known/security.txt", policy.Security(
+		"security@bearlysecure.example",
+		"https://bearlysecure.example/security-policy",
+		time.Now,
+	))
 	mainMux.Handle("/", dynamicHandler)
 
 	handler := applyMiddleware(
