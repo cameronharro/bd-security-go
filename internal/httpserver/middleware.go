@@ -3,6 +3,7 @@
 package httpserver
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"uuid"
 
 	"github.com/bootdotdev/learn-web-security/internal/httpx"
 	"github.com/bootdotdev/learn-web-security/internal/logging"
@@ -52,6 +54,21 @@ func preventCSRF(trustedOrigin string, renderer *templates.Renderer) middleware 
 				return
 			}
 			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+var requestIDKey = "requestId"
+
+func requestID() middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			id := uuid.NewV4()
+			var requestHeaderName = "X-Request-ID"
+			w.Header().Add(requestHeaderName, id.String())
+			newContext := context.WithValue(r.Context(), requestIDKey, id.String())
+			newRequest := r.WithContext(newContext)
+			next.ServeHTTP(w, newRequest)
 		})
 	}
 }
