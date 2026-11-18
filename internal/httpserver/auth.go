@@ -17,6 +17,7 @@ import (
 	"github.com/bootdotdev/learn-web-security/internal/botdetection"
 	"github.com/bootdotdev/learn-web-security/internal/httpx"
 	"github.com/bootdotdev/learn-web-security/internal/logging"
+	"github.com/bootdotdev/learn-web-security/internal/observability"
 	"github.com/bootdotdev/learn-web-security/internal/templates"
 )
 
@@ -30,6 +31,11 @@ type authPage struct {
 	ReturnTo string
 }
 
+type thresholds struct {
+	failedLogins          *observability.AuthAlertThreshold
+	passwordResetRequests *observability.AuthAlertThreshold
+}
+
 type authHandler struct {
 	accounts         *accounts.Store
 	renderer         *templates.Renderer
@@ -38,6 +44,7 @@ type authHandler struct {
 	passwordResets   *passwordreset.Store
 	appOrigin        string
 	trustedProxyHops int
+	thresholds       thresholds
 }
 
 func newAuthHandler(
@@ -48,6 +55,7 @@ func newAuthHandler(
 	logger *logging.Logger,
 	appOrigin string,
 	trustedProxyHops int,
+	thresholds thresholds,
 ) *authHandler {
 	return &authHandler{
 		accounts:         accountStore,
@@ -57,6 +65,7 @@ func newAuthHandler(
 		passwordResets:   passwordResetStore,
 		appOrigin:        appOrigin,
 		trustedProxyHops: trustedProxyHops,
+		thresholds:       thresholds,
 	}
 }
 
@@ -96,6 +105,11 @@ func (handler *authHandler) Login(responseWriter http.ResponseWriter, request *h
 		return
 	}
 	if !found || !passwords.Verify(password, user.PasswordHash) {
+		handler.thresholds.failedLogins.Record(
+			getRequestID(request),
+			clientIPKeyWithTrustedProxies(handler.trustedProxyHops)(request),
+			user.ID,
+		)
 		handler.logAuthenticationEvent(request, "login_attempt", map[string]any{
 			"email":         email,
 			"success":       false,

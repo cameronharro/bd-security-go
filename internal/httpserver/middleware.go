@@ -60,13 +60,21 @@ func preventCSRF(trustedOrigin string, renderer *templates.Renderer) middleware 
 
 var requestIDKey = "requestId"
 
-func requestID() middleware {
+func getRequestID(r *http.Request) uuid.UUID {
+	id := r.Context().Value(requestIDKey)
+	if requestID, ok := id.(uuid.UUID); ok {
+		return requestID
+	}
+	panic("invalid request ID")
+}
+
+func addRequestID() middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			id := uuid.NewV4()
 			var requestHeaderName = "X-Request-ID"
 			w.Header().Add(requestHeaderName, id.String())
-			newContext := context.WithValue(r.Context(), requestIDKey, id.String())
+			newContext := context.WithValue(r.Context(), requestIDKey, id)
 			newRequest := r.WithContext(newContext)
 			next.ServeHTTP(w, newRequest)
 		})

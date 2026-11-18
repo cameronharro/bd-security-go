@@ -24,6 +24,7 @@ import (
 	"github.com/bootdotdev/learn-web-security/internal/imagepreview"
 	"github.com/bootdotdev/learn-web-security/internal/integrations/pawpal"
 	"github.com/bootdotdev/learn-web-security/internal/logging"
+	"github.com/bootdotdev/learn-web-security/internal/observability"
 	"github.com/bootdotdev/learn-web-security/internal/orders"
 	"github.com/bootdotdev/learn-web-security/internal/reviews"
 	"github.com/bootdotdev/learn-web-security/internal/storage"
@@ -128,6 +129,20 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 		logger,
 		options.AppOrigin,
 		options.TrustedProxyHops,
+		thresholds{
+			failedLogins: observability.NewAuthAlertThreshold(
+				"failed_logins",
+				3,
+				5*time.Minute,
+				logger,
+			),
+			passwordResetRequests: observability.NewAuthAlertThreshold(
+				"password_reset_requests",
+				3,
+				10*time.Minute,
+				logger,
+			),
+		},
 	)
 	passkeyHandler, err := passkeys.NewHandler(
 		options.AppOrigin,
@@ -299,7 +314,7 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 		recoverPanics(logger, renderer),
 		cspNonce,
 		securityHeaders,
-		requestID(),
+		addRequestID(),
 	)
 	return &Application{Handler: handler, publicRoot: publicRoot}, nil
 }
